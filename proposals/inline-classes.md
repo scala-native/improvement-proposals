@@ -39,8 +39,7 @@ For now, we also require that they only have immutable fields and that they don'
 
 Primitive classes such as `Int`, `Double` or `Boolean` all count as inline classes.
 
-Inline classes must directly or indirectly extend `AnyVal`. If no explicit class parent is listed in an inline class definition, `AnyVal` is assumed. In a sense,  inline classes can be understood as version 2 of Scala's value classes. They drop several of the restrictions of value classes, in particular, they can have more than one field. On the other hand, they introduce the new restriction that inline classes cannot be parameterized. Parameterized value classes are generally allowed but introduce a number of technical restrictions that makes the feature
-less usable than one might expect.
+Inline classes must directly or indirectly extend `AnyVal`. If no explicit class parent is listed in an inline class definition, `AnyVal` is assumed. In a sense,  inline classes can be understood as version 2 of Scala's value classes. They drop several of the restrictions of value classes, in particular, they can have more than one field. On the other hand, they introduce the new restriction that inline classes cannot be parameterized. Parameterized value classes are currently allowed but they are constrained by a number of technical restrictions that makes the feature less usable than one might expect.
 
 ## Representation of Inline Classes
 
@@ -69,11 +68,12 @@ In that case, we need to convert the reference to a regular pointer (which canno
 which means creating a normal stand-alone object. The class info of that stand-alone object would be a normal class that mirrors the data and the behavior of the inline class. Alternatively, we could define a boxed inline class as a regular class that contains the inline
 class value as its only field and forwards all methods defined by the inline class to that field.
 
-We will see later that boxing is not required when passing an inline class value to a generic context; only explicit upcasts require boxing. We would therefore expect boxing to be relatively rare.
+We will see later that boxing is not required when passing an inline class value to a generic context; only monomorphic upcasts require boxing. We would therefore expect boxing to be relatively rare.
 
 ## Representation of Inline Class References
 
-Given an inline class reference, we need to be able to access not just its fields but also the class info and vtable of the inline class. Since inline classes don't come with a header the only way to store this info is in the reference itself. Here is a scheme how this can be accomplished in 64 bits. Our representation is such that a full address range of 48 bits is supported (which is the maximum virtual address range of current processor architectures). At the same time, it allows for close to 224K different inline classes. We assume here that all heap pointers are aligned at 8 byte boundaries.
+Given an inline class reference, we need to be able to access not just its fields but also the class info and vtable of the inline class. Since inline classes don't come with a header the only way to store this info is in the reference itself. Here is a scheme how this can be accomplished in 64 bits. Our representation is such that a full address range of 48 bits is supported (which is the maximum virtual address range of current processor architectures). At the same time, it allows for close to 448K different inline classes. We assume here that all heap pointers that go to full objects are aligned at 16 byte boundaries whereas
+alignments of inline references follow their natural sizes.
 
 An inline class reference is composed of two fields, listed from high to low bits:
 
@@ -85,7 +85,7 @@ The vtable index could be implemented in one of two ways:
  - as an index into an array of vtable references, or
  - as a shifted pointer directly to the class info of an inline class (which would be aligned at some coarse granularity).
 
-Table indices ending in `000` binary are reserved; they cannot be used for inline classes. This means that regular pointers and inline references can be distinguished according to whether the low 3 bits of their address are 0 or not.
+Table indices ending in `0000` binary are reserved; they cannot be used for inline classes. This means that regular pointers and inline references can be distinguished according to whether the low 4 bits of their address are 0 or not.
 
 We can convert an inline class reference to a machine address as follows
 
@@ -217,7 +217,7 @@ vtable. They differ in two items that need to be added per info:
  1. A field for the total size of the instance class.
  2. For each field that has the type of a type parameter: a way to compute a reference to the field. This could
    be stored as an offset to be added to the (possibly shifted) address of the enclosing object. The offset would contain both the
-   field offset and the vtable info for the inline class. If the last bits of this offset are `000` this would indicate that the field is of a regular class type. In that case, the computed value needs to be dereferenced once to get
+   field offset and the vtable info for the inline class. If the last four bits of this offset are `0000` this would indicate that the field is of a regular class type. In that case, the computed value needs to be dereferenced once to get
    the correct reference.
 
 **Example**:
@@ -235,7 +235,7 @@ For `Pair[Color, String]`, the `fst` parameter info is as before and the
 
 To compute a reference from a base address `a` and an offset `o`, proceed as follows:
 ```scala
-  if (o & 111) == 0 then (a + o)^ else (a <<< 19) + o
+  if (o & 0xF) == 0 then (a + o)^ else (a <<< 19) + o
 ```
 
 ## Computing ClassInstance Infos
