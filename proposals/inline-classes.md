@@ -15,7 +15,7 @@ Another facet of this problem is presented by custom classes. Say we have
 ```scala
 class Color(rgb: Int)
 class Complex(re: Double, im: Double)
-class Point(coord: Complex color: Color)
+class Point(coord: Complex, color: Color)
 ```
 Then a `Point` consists of three objects or types `Point`, `Complex` and `Color`. One might have wished instead for a single object where
 the `coord` and `color` fields are inlined.
@@ -31,7 +31,7 @@ An inline class is defined by adding the modifier `inline` to a class definition
 ```scala
 inline class Color(rgb: Int)
 inline class Complex(re: Double, im: Double)
-inline class Point(coord: Complex color: Color)
+inline class Point(coord: Complex, color: Color)
 ```
 Inline classes are implicitly `sealed`. They cannot have inner classes.
 If they have child classes, these must be inline classes as well.
